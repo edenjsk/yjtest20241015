@@ -61,38 +61,23 @@
         async function init() {
             const modelURL = URL + "model.json";
             const metadataURL = URL + "metadata.json";
+        
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+        
+            // 웹캠 설정 (후면 카메라로 설정)
+            const flip = false; // flip을 false로 설정 (후면 카메라를 사용)
+            const width = 640;
+            const height = 480;
+            webcam = new tmImage.Webcam(width, height, flip); // flip 설정을 명시적으로 추가
+            await webcam.setup({ facingMode: "environment" }); // 후면 카메라를 사용
+            await webcam.play();
+            window.requestAnimationFrame(loop);
 
-            try {
-                model = await tmImage.load(modelURL, metadataURL);
-                maxPredictions = model.getTotalClasses();
-            } catch (error) {
-                console.error("Failed to load the model or metadata: ", error);
-                alert("모델을 불러오는 데 실패했습니다. URL을 확인해주세요.");
-                return;
-            }
-
-            const constraints = {
-                video: {
-                    facingMode: "environment" // 후면 카메라 설정
-                }
-            };
-
-            // 웹캠 설정
-            try {
-                webcam = new tmImage.Webcam(640, 480, false); // width, height, flip
-                await webcam.setup(constraints); // 카메라 권한 요청 및 설정
-                await webcam.play();
-                window.requestAnimationFrame(loop);
-
-                document.getElementById("webcam-container").appendChild(webcam.canvas);
-            } catch (error) {
-                console.error("Failed to initialize the webcam: ", error);
-                alert("웹캠을 초기화하는 데 실패했습니다. 카메라 권한을 허용하고 기기를 확인해주세요.");
-                return;
-            }
-
+            document.getElementById("webcam-container").appendChild(webcam.canvas);
             labelContainer = document.getElementById("label-container");
             infoContainer = document.getElementById("info-container");
+
             for (let i = 0; i < maxPredictions; i++) { 
                 labelContainer.appendChild(document.createElement("div"));
             }
@@ -105,58 +90,54 @@
         }
 
         async function predict() {
-            try {
-                const prediction = await model.predict(webcam.canvas);
-                const highestPrediction = prediction.reduce((prev, current) => (prev.probability > current.probability) ? prev : current);
+            const prediction = await model.predict(webcam.canvas);
+            const highestPrediction = prediction.reduce((prev, current) => (prev.probability > current.probability) ? prev : current);
 
-                switch (highestPrediction.className) {
-                    case "powder":
-                        labelContainer.childNodes[0].innerHTML = "파우더 감지됨";
-                        infoContainer.innerHTML = `
-                        <strong>[Portable Dry Powder Extinguisher]</strong><br>
-                        A급 화재, B급 화재, C급 화재, F급 화재, K급 화재<br><br>
-                        - 소화기의 부식 및 손상 여부를 육안으로 검사<br>
-                        - 안전 핀과 Tamper Seal이 장착되어 있는지 확인하여 소화기가 사용되지 않았는지 확인<br>
-                        - 압력게이지의 바늘이 녹색부분을 나타내는 지 확인<br>
-                        - 소화기의 작동 지침이 명확하고 읽을 수 있는지 확인<br>
-                        - 배출 호스를 분리하고 막힘 및 부식 여부를 확인(‘O’링 같은 경우 교체 주기는 3~5년)<br>
-                        - 소화 밸브가 잘 동작하는지 확인<br>
-                        - 소화기 무게를 측정하고 서비스 라벨에 기록<br>
-                        - 소화기의 무게가 10% 이상 감소한 경우 조사 및 재충전하기<br>
-                        - 소화기를 청결하게 관리하기<br>
-                        - 파우더 소화기의 경우 수명은 10년 주기
-                        `;
-                        break;
-                    case "foam":
-                        labelContainer.childNodes[0].innerHTML = "폼 감지됨";
-                        infoContainer.innerHTML = `
-                        <strong>[폼(Foam) 소화기]</strong><br>
-                        A급 화재: 일반화재<br>
-                        B급 화재: 유류화재(알코올, 유기 용제, 석유류, 가스 등 액체 화재)<br><br>
-                        1. 소화기 레버패킹 확인<br>
-                        2. 밖에 손상된 부위 확인<br>
-                        3. 손잡이 고착 확인<br>
-                        4. 연차검사 스티커 확인
-                        `;
-                        break;
-                    case "EEBD":
-                        labelContainer.childNodes[0].innerHTML = "EEBD 감지됨";
-                        infoContainer.innerHTML = `
-                        <strong>[EEBD]</strong><br>
-                        - 적어도 10분 사용 가능할 것<br>
-                        - 두건 및 안면용품은 불연성이어야 하며, 투명 유리창을 포함해야 한다.<br>
-                        - 손을 사용하지 않고 휴대할 수 있어야 한다.<br>
-                        - Hand free type (통상 Strap이 달려있음)일 것<br>
-                        - EEBD 표면에 간단한 또는 그림으로 사용 절차서가 붙어있어야 한다.<br>
-                        - 정비요건, 제조사 상표, 제조번호, 제조일자를 동반한 유효기간 및 승인관청의 이름을 각 EEBD에 인쇄해야 하며, 훈련용이 있을 경우 훈련용이라는 표시가 명확하게 기입되어 있어야 한다.
-                        `;
-                        break;
-                    default:
-                        labelContainer.childNodes[0].innerHTML = "아무 항목도 감지되지 않았습니다.";
-                        infoContainer.innerHTML = "";
-                }
-            } catch (error) {
-                console.error("Failed to predict: ", error);
+            switch (highestPrediction.className) {
+                case "powder":
+                    labelContainer.childNodes[0].innerHTML = "파우더 감지됨";
+                    infoContainer.innerHTML = `
+                    <strong>[Portable Dry Powder Extinguisher]</strong><br>
+                    A급 화재, B급 화재, C급 화재, F급 화재, K급 화재<br><br>
+                    - 소화기의 부식 및 손상 여부를 육안으로 검사<br>
+                    - 안전 핀과 Tamper Seal이 장착되어 있는지 확인하여 소화기가 사용되지 않았는지 확인<br>
+                    - 압력게이지의 바늘이 녹색부분을 나타내는 지 확인<br>
+                    - 소화기의 작동 지침이 명확하고 읽을 수 있는지 확인<br>
+                    - 배출 호스를 분리하고 막힘 및 부식 여부를 확인(‘O’링 같은 경우 교체 주기는 3~5년)<br>
+                    - 소화 밸브가 잘 동작하는지 확인<br>
+                    - 소화기 무게를 측정하고 서비스 라벨에 기록<br>
+                    - 소화기의 무게가 10% 이상 감소한 경우 조사 및 재충전하기<br>
+                    - 소화기를 청결하게 관리하기<br>
+                    - 파우더 소화기의 경우 수명은 10년 주기
+                    `;
+                    break;
+                case "foam":
+                    labelContainer.childNodes[0].innerHTML = "폼 감지됨";
+                    infoContainer.innerHTML = `
+                    <strong>[폼(Foam) 소화기]</strong><br>
+                    A급 화재: 일반화재<br>
+                    B급 화재: 유류화재(알코올, 유기 용제, 석유류, 가스 등 액체 화재)<br><br>
+                    1. 소화기 레버패킹 확인<br>
+                    2. 밖에 손상된 부위 확인<br>
+                    3. 손잡이 고착 확인<br>
+                    4. 연차검사 스티커 확인
+                    `;
+                    break;
+                case "EEBD":
+                    labelContainer.childNodes[0].innerHTML = "EEBD 감지됨";
+                    infoContainer.innerHTML = `
+                    <strong>[EEBD]</strong><br>
+                    - 적어도 10분 사용 가능할 것<br>
+                    - 두건 및 안면용품은 불연성이어야 하며, 투명 유리창을 포함해야 한다.<br>
+                    - 손을 사용하지 않고 휴대할 수 있어야 한다.<br>
+                    - Hand free type (통상 Strap이 달려있음)일 것<br>
+                    - EEBD 표면에 간단한 또는 그림으로 사용 절차서가 붙어있어야 한다.<br>
+                    - 정비요건, 제조사 상표, 제조번호, 제조일자를 동반한 유효기간 및 승인관청의 이름을 각 EEBD에 인쇄해야 하며, 훈련용이 있을 경우 훈련용이라는 표시가 명확하게 기입되어 있어야 한다.
+                    `;
+                    break;
+                default:
+                    labelContainer.childNodes[0].innerHTML = "아무 항목도 감지되지 않았습니다.";
+                    infoContainer.innerHTML = "";
             }
         }
     </script>
